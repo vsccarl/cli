@@ -33,7 +33,7 @@ namespace Microsoft.DotNet.Cli.Build
                 IsTool = false,
                 Path = "TestAssets/TestPackages/PackageWithFakeNativeDep",
                 IsApplicable = true,
-                VersionSuffix = s_testPackageBuildVersionSuffix,
+                VersionSuffix = string.Empty,
                 Clean = true,
                 Frameworks = new [] { "net45" }
             },

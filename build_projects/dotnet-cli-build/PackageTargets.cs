@@ -229,11 +229,10 @@ namespace Microsoft.DotNet.Cli.Build
 
                 dotnet.Pack(
                     projectFile,
-                    "--no-build",
-                    "--build-base-path", packagingBuildBasePath,
-                    "--output", Dirs.Packages,
-                    "--configuration", configuration,
-                    "--version-suffix", versionSuffix)
+                    "--base-path", packagingBuildBasePath,
+                    "--output-directory", Dirs.Packages,
+                    "--properties", $"Configuration={configuration}",
+                    "--suffix", versionSuffix)
                     .Execute()
                     .EnsureSuccessful();
             }

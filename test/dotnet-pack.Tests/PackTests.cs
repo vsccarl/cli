@@ -33,7 +33,7 @@ namespace Microsoft.DotNet.Tools.Compiler.Tests
             CopyProjectToTempDir(sourceTestLibDir, testLibDir);
 
             var testProject = GetProjectPath(testLibDir);
-            var packCommand = new PackCommand(testProject, configuration: "Test");
+            var packCommand = new PackCommand(testProject, configuration: "Test", output: Path.Combine(testLibDir.Path, "bin", "Test"));
             var result = packCommand.Execute();
             result.Should().Pass();
 
@@ -65,19 +65,26 @@ namespace Microsoft.DotNet.Tools.Compiler.Tests
         [Fact]
         public void SettingVersionSuffixFlag_ShouldStampAssemblyInfoInOutputAssemblyAndPackage()
         {
-            var testInstance = TestAssetsManager.CreateTestInstance("TestLibraryWithConfiguration")
-                                                .WithLockFiles();
+            var root = Temp.CreateDirectory();
 
-            var cmd = new PackCommand(Path.Combine(testInstance.TestRoot, Project.FileName),  versionSuffix: "85");
+            var testLibDir = root.CreateDirectory("TestLibraryWithConfiguration");
+            var sourceTestLibDir = Path.Combine(_testProjectsRoot, "TestLibraryWithConfiguration");
+
+            CopyProjectToTempDir(sourceTestLibDir, testLibDir);
+
+            var testProject = GetProjectPath(testLibDir);
+            var testFolder = Path.GetDirectoryName(testProject);
+
+            var cmd = new PackCommand(testProject, versionSuffix: "85", output: Path.Combine(testFolder, "bin", "Debug"));
             cmd.Execute().Should().Pass();
 
-            var output = Path.Combine(testInstance.TestRoot, "bin", "Debug", DefaultLibraryFramework, "TestLibraryWithConfiguration.dll");
+            var output = Path.Combine(testFolder, "bin", "Debug", DefaultLibraryFramework, "TestLibraryWithConfiguration.dll");
             var informationalVersion = PeReaderUtils.GetAssemblyAttributeValue(output, "AssemblyInformationalVersionAttribute");
 
             informationalVersion.Should().NotBeNull();
             informationalVersion.Should().BeEquivalentTo("1.0.0-85");
 
-            var outputPackage = Path.Combine(testInstance.TestRoot, "bin", "Debug", "TestLibraryWithConfiguration.1.0.0-85.nupkg");
+            var outputPackage = Path.Combine(testFolder, "bin", "Debug", "TestLibraryWithConfiguration.1.0.0-85.nupkg");
             File.Exists(outputPackage).Should().BeTrue(outputPackage);
         }
 
@@ -87,7 +94,7 @@ namespace Microsoft.DotNet.Tools.Compiler.Tests
             var testInstance = TestAssetsManager.CreateTestInstance("TestLibraryWithConfiguration")
                                                    .WithLockFiles();
 
-            var cmd = new PackCommand(Path.Combine(testInstance.TestRoot, Project.FileName), buildBasePath: "buildBase");
+            var cmd = new PackCommand(Path.Combine(testInstance.TestRoot, Project.FileName), buildBasePath: "buildBase", output: Path.Combine(testInstance.TestRoot, "bin", "Debug"));
             cmd.Execute().Should().Pass();
 
             var outputPackage = Path.Combine(testInstance.TestRoot, "bin", "Debug", "TestLibraryWithConfiguration.1.0.0.nupkg");
@@ -104,7 +111,7 @@ namespace Microsoft.DotNet.Tools.Compiler.Tests
                                                    .WithLockFiles()
                                                    .WithBuildArtifacts();
 
-            var cmd = new PackCommand(Path.Combine(testInstance.TestRoot, Project.FileName));
+            var cmd = new PackCommand(Path.Combine(testInstance.TestRoot, Project.FileName), output: Path.Combine(testInstance.TestRoot, "bin", "Debug"));
             cmd.Execute().Should().Pass();
 
             var outputPackage = Path.Combine(testInstance.TestRoot, "bin", "Debug", "EndToEndTestApp.1.0.0.nupkg");
@@ -123,7 +130,7 @@ namespace Microsoft.DotNet.Tools.Compiler.Tests
                     .CreateTestInstance("LibraryWithOutputAssemblyName")
                     .WithLockFiles();
 
-            var cmd = new PackCommand(Path.Combine(testInstance.TestRoot, Project.FileName));
+            var cmd = new PackCommand(Path.Combine(testInstance.TestRoot, Project.FileName), output: Path.Combine(testInstance.TestRoot, "bin", "Debug"));
             cmd.Execute().Should().Pass();
 
             var outputPackage = Path.Combine(testInstance.TestRoot, "bin", "Debug", "LibraryWithOutputAssemblyName.1.0.0.nupkg");
@@ -163,11 +170,11 @@ namespace Microsoft.DotNet.Tools.Compiler.Tests
             CopyProjectToTempDir(sourceTestLibDir, testLibDir);
 
             var testProject = GetProjectPath(testLibDir);
-            var packCommand = new PackCommand(testProject, configuration: "Debug", serviceable: true);
+            var packCommand = new PackCommand(testProject, configuration: "Debug", output: Path.GetDirectoryName(testProject), serviceable: true);
             var result = packCommand.Execute();
             result.Should().Pass();
 
-            var outputDir = new DirectoryInfo(Path.Combine(testLibDir.Path, "bin", "Debug"));
+            var outputDir = new DirectoryInfo(testLibDir.Path);
             outputDir.Should().Exist();
             outputDir.Should().HaveFiles(new[] { "TestLibrary.1.0.0.nupkg", "TestLibrary.1.0.0.symbols.nupkg" });
 

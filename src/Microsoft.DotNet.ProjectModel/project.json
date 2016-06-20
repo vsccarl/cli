@@ -1,5 +1,7 @@
 {
   "version": "1.0.0-rc4-*",
+  "authors": ["dotnet"],
+  "description": "Microsoft.DotNet.ProjectModel",
   "buildOptions": {
     "keyFile": "../../tools/Key.snk"
   },
@@ -9,8 +11,8 @@
       "target": "project"
     },
     "Newtonsoft.Json": "9.0.1",
-    "NuGet.Packaging": "3.5.0-beta2-1484",
-    "NuGet.RuntimeModel": "3.5.0-beta2-1484",
+    "NuGet.Packaging": "3.5.0-rc-1491",
+    "NuGet.RuntimeModel": "3.5.0-rc-1491",
     "System.Reflection.Metadata": "1.3.0"
   },
   "frameworks": {

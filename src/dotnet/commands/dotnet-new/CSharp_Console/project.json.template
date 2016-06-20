@@ -1,5 +1,7 @@
 {
   "version": "1.0.0-*",
+  "authors": [ "dotnet" ],
+  "description": "description",
   "buildOptions": {
     "debugType": "portable",
     "emitEntryPoint": true

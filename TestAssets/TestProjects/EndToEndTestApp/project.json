@@ -1,5 +1,7 @@
 {
   "version": "1.0.0-*",
+  "authors": ["test"],
+  "description": "End to End Test App",
   "buildOptions": {
     "emitEntryPoint": true,
     "embed": {
