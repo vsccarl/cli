@@ -229,6 +229,7 @@ namespace Microsoft.DotNet.Cli.Build
 
                 dotnet.Pack(
                     projectFile,
+                    "--serviceable",
                     "--base-path", packagingBuildBasePath,
                     "--output-directory", Dirs.Packages,
                     "--properties", $"Configuration={configuration}",
