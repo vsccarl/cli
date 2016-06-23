@@ -65,26 +65,19 @@ namespace Microsoft.DotNet.Tools.Compiler.Tests
         [Fact]
         public void SettingVersionSuffixFlag_ShouldStampAssemblyInfoInOutputAssemblyAndPackage()
         {
-            var root = Temp.CreateDirectory();
+            var testInstance = TestAssetsManager.CreateTestInstance("TestLibraryWithConfiguration")
+                                                .WithLockFiles();
 
-            var testLibDir = root.CreateDirectory("TestLibraryWithConfiguration");
-            var sourceTestLibDir = Path.Combine(_testProjectsRoot, "TestLibraryWithConfiguration");
-
-            CopyProjectToTempDir(sourceTestLibDir, testLibDir);
-
-            var testProject = GetProjectPath(testLibDir);
-            var testFolder = Path.GetDirectoryName(testProject);
-
-            var cmd = new PackCommand(testProject, versionSuffix: "85", output: Path.Combine(testFolder, "bin", "Debug"));
+            var cmd = new PackCommand(Path.Combine(testInstance.TestRoot, Project.FileName), versionSuffix: "85", output: Path.Combine(testInstance.TestRoot, "bin", "Debug"));
             cmd.Execute().Should().Pass();
 
-            var output = Path.Combine(testFolder, "bin", "Debug", DefaultLibraryFramework, "TestLibraryWithConfiguration.dll");
+            var output = Path.Combine(testInstance.TestRoot, "bin", "Debug", DefaultLibraryFramework, "TestLibraryWithConfiguration.dll");
             var informationalVersion = PeReaderUtils.GetAssemblyAttributeValue(output, "AssemblyInformationalVersionAttribute");
 
             informationalVersion.Should().NotBeNull();
             informationalVersion.Should().BeEquivalentTo("1.0.0-85");
 
-            var outputPackage = Path.Combine(testFolder, "bin", "Debug", "TestLibraryWithConfiguration.1.0.0-85.nupkg");
+            var outputPackage = Path.Combine(testInstance.TestRoot, "bin", "Debug", "TestLibraryWithConfiguration.1.0.0-85.nupkg");
             File.Exists(outputPackage).Should().BeTrue(outputPackage);
         }
 
