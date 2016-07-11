@@ -44,15 +44,18 @@ namespace Microsoft.DotNet.Cli
         {
             DebugHelper.HandleDebugSwitch(ref args);
 
-            new MulticoreJitActivator().TryActivateMulticoreJit();
-
             if (Env.GetEnvironmentVariableAsBool("DOTNET_CLI_CAPTURE_TIMING", false))
             {
                 PerfTrace.Enabled = true;
             }
-
-            InitializeProcess();
-
+            using (PerfTrace.Current.CaptureTiming(memberName: "TryActivateMulticoreJit"))
+            {
+                new MulticoreJitActivator().TryActivateMulticoreJit();
+            }
+            using (PerfTrace.Current.CaptureTiming(memberName: nameof(InitializeProcess)))
+            {
+                InitializeProcess();
+            }
             try
             {
                 using (PerfTrace.Current.CaptureTiming())
@@ -71,7 +74,7 @@ namespace Microsoft.DotNet.Cli
                 if (PerfTrace.Enabled)
                 {
                     Reporter.Output.WriteLine("Performance Summary:");
-                    PerfTraceOutput.Print(Reporter.Output, PerfTrace.GetEvents());
+                    PerfTraceOutput.Print(PerfTrace.GetEvents());
                 }
             }
         }
@@ -114,8 +117,10 @@ namespace Microsoft.DotNet.Cli
                     }
                     else
                     {
-                        ConfigureDotNetForFirstTimeUse(nugetCacheSentinel);
-
+                        using (PerfTrace.Current.CaptureTiming(nameof(ConfigureDotNetForFirstTimeUse)))
+                        {
+                            ConfigureDotNetForFirstTimeUse(nugetCacheSentinel);
+                        }
                         // It's the command, and we're done!
                         command = args[lastArg];
                         break;

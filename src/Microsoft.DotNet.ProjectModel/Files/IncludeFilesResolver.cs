@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Microsoft.DotNet.Cli.Utils;
 using Microsoft.DotNet.ProjectModel.Utilities;
 using Microsoft.DotNet.ProjectModel.FileSystemGlobbing;
 using Microsoft.DotNet.ProjectModel.FileSystemGlobbing.Abstractions;
@@ -15,15 +16,18 @@ namespace Microsoft.DotNet.ProjectModel.Files
     {
         public static IEnumerable<IncludeEntry> GetIncludeFiles(IncludeContext context, string targetBasePath, IList<DiagnosticMessage> diagnostics)
         {
-            return GetIncludeFiles(context, targetBasePath, diagnostics, flatten: false);
+            using (PerfTrace.Current.CaptureTiming())
+            {
+                return GetIncludeFiles(context, targetBasePath, diagnostics, flatten: false).ToArray();
+            }
         }
 
-        public static IEnumerable<IncludeEntry> GetIncludeFiles(
+        internal static IEnumerable<IncludeEntry> GetIncludeFiles(
             IncludeContext context,
             string targetBasePath,
             IList<DiagnosticMessage> diagnostics,
             bool flatten)
-        {
+    {
             var sourceBasePath = PathUtility.EnsureTrailingSlash(context.SourceBasePath);
             targetBasePath = PathUtility.GetPathWithDirectorySeparator(targetBasePath);
 
@@ -157,6 +161,7 @@ namespace Microsoft.DotNet.ProjectModel.Files
             }
 
             return includeEntries;
+            
         }
 
         private static IEnumerable<FilePatternMatch> GetIncludeFilesCore(

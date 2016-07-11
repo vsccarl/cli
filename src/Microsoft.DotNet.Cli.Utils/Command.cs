@@ -44,10 +44,13 @@ namespace Microsoft.DotNet.Cli.Utils
             NuGetFramework framework = null,  
             string configuration = Constants.DefaultConfiguration)
         {
-            return Create("dotnet", 
-                new[] { commandName }.Concat(args), 
-                framework, 
-                configuration: configuration);
+            using (PerfTrace.Current.CaptureTiming())
+            {
+                return Create("dotnet",
+                    new[] {commandName}.Concat(args),
+                    framework,
+                    configuration: configuration);
+            }
         }
 
         /// <summary>
@@ -67,20 +70,23 @@ namespace Microsoft.DotNet.Cli.Utils
             string configuration = Constants.DefaultConfiguration,
             string outputPath = null)
         {
-            var commandSpec = CommandResolver.TryResolveCommandSpec(commandName, 
-                args, 
-                framework, 
-                configuration: configuration,
-                outputPath: outputPath);
-
-            if (commandSpec == null)
+            using (PerfTrace.Current.CaptureTiming())
             {
-                throw new CommandUnknownException(commandName);
+                var commandSpec = CommandResolver.TryResolveCommandSpec(commandName,
+                    args,
+                    framework,
+                    configuration: configuration,
+                    outputPath: outputPath);
+
+                if (commandSpec == null)
+                {
+                    throw new CommandUnknownException(commandName);
+                }
+
+                var command = new Command(commandSpec);
+
+                return command;
             }
-
-            var command = new Command(commandSpec);
-
-            return command;
         }
 
         public static Command Create(CommandSpec commandSpec)
@@ -94,19 +100,22 @@ namespace Microsoft.DotNet.Cli.Utils
             Project project,
             string[] inferredExtensionList)
         {
-            var commandSpec = CommandResolver.TryResolveScriptCommandSpec(commandName,
-                args,
-                project,
-                inferredExtensionList);
-
-            if (commandSpec == null)
+            using (PerfTrace.Current.CaptureTiming())
             {
-                throw new CommandUnknownException(commandName);
+                var commandSpec = CommandResolver.TryResolveScriptCommandSpec(commandName,
+                    args,
+                    project,
+                    inferredExtensionList);
+
+                if (commandSpec == null)
+                {
+                    throw new CommandUnknownException(commandName);
+                }
+
+                var command = new Command(commandSpec);
+
+                return command;
             }
-
-            var command = new Command(commandSpec);
-
-            return command;
         }
 
         public CommandResult Execute()

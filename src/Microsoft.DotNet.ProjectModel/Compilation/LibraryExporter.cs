@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using Microsoft.DotNet.Cli.Utils;
 using Microsoft.DotNet.ProjectModel.Compilation.Preprocessor;
 using Microsoft.DotNet.ProjectModel.Files;
 using Microsoft.DotNet.ProjectModel.Graph;
@@ -54,7 +55,7 @@ namespace Microsoft.DotNet.ProjectModel.Compilation
         /// </summary>
         public IEnumerable<LibraryExport> GetAllExports()
         {
-            return ExportLibraries(_ => true);
+                return ExportLibraries(_ => true);
         }
 
         /// <summary>
@@ -84,61 +85,66 @@ namespace Microsoft.DotNet.ProjectModel.Compilation
         /// </summary>
         private IEnumerable<LibraryExport> ExportLibraries(Func<LibraryDescription, bool> condition)
         {
-            var seenMetadataReferences = new HashSet<string>();
-
-            // Iterate over libraries in the library manager
-            foreach (var library in LibraryManager.GetLibraries())
+            using (PerfTrace.Current.CaptureTiming())
             {
-                if (!condition(library))
-                {
-                    continue;
-                }
+                var seenMetadataReferences = new HashSet<string>();
 
-                var compilationAssemblies = new List<LibraryAsset>();
-                var sourceReferences = new List<LibraryAsset>();
-                var analyzerReferences = new List<AnalyzerReference>();
-                var libraryExport = GetExport(library);
-
-                // We need to filter out source references from non-root libraries,
-                // so we rebuild the library export
-                foreach (var reference in libraryExport.CompilationAssemblies)
+                // Iterate over libraries in the library manager
+                foreach (var library in LibraryManager.GetLibraries())
                 {
-                    if (seenMetadataReferences.Add(reference.Name))
+                    if (!condition(library))
                     {
-                        compilationAssemblies.Add(reference);
+                        continue;
                     }
-                }
 
-                // Source and analyzer references are not transitive
-                if (library.Parents.Contains(_rootProject))
-                {
-                    sourceReferences.AddRange(libraryExport.SourceReferences);
-                    analyzerReferences.AddRange(libraryExport.AnalyzerReferences);
-                }
+                    var compilationAssemblies = new List<LibraryAsset>();
+                    var sourceReferences = new List<LibraryAsset>();
+                    var analyzerReferences = new List<AnalyzerReference>();
+                    var libraryExport = GetExport(library);
 
-                var builder = LibraryExportBuilder.Create(library);
-                if (_runtime != null && _runtimeFallbacks != null)
-                {
-                    // For portable apps that are built with runtime trimming we replace RuntimeAssemblyGroups and NativeLibraryGroups
-                    // with single default group that contains asset specific to runtime we are trimming for
-                    // based on runtime fallback list
-                    builder.WithRuntimeAssemblyGroups(TrimAssetGroups(libraryExport.RuntimeAssemblyGroups, _runtimeFallbacks));
-                    builder.WithNativeLibraryGroups(TrimAssetGroups(libraryExport.NativeLibraryGroups, _runtimeFallbacks));
-                }
-                else
-                {
-                    builder.WithRuntimeAssemblyGroups(libraryExport.RuntimeAssemblyGroups);
-                    builder.WithNativeLibraryGroups(libraryExport.NativeLibraryGroups);
-                }
+                    // We need to filter out source references from non-root libraries,
+                    // so we rebuild the library export
+                    foreach (var reference in libraryExport.CompilationAssemblies)
+                    {
+                        if (seenMetadataReferences.Add(reference.Name))
+                        {
+                            compilationAssemblies.Add(reference);
+                        }
+                    }
 
-                yield return builder
-                    .WithCompilationAssemblies(compilationAssemblies)
-                    .WithSourceReferences(sourceReferences)
-                    .WithRuntimeAssets(libraryExport.RuntimeAssets)
-                    .WithEmbedddedResources(libraryExport.EmbeddedResources)
-                    .WithAnalyzerReference(analyzerReferences)
-                    .WithResourceAssemblies(libraryExport.ResourceAssemblies)
-                    .Build();
+                    // Source and analyzer references are not transitive
+                    if (library.Parents.Contains(_rootProject))
+                    {
+                        sourceReferences.AddRange(libraryExport.SourceReferences);
+                        analyzerReferences.AddRange(libraryExport.AnalyzerReferences);
+                    }
+
+                    var builder = LibraryExportBuilder.Create(library);
+                    if (_runtime != null && _runtimeFallbacks != null)
+                    {
+                        // For portable apps that are built with runtime trimming we replace RuntimeAssemblyGroups and NativeLibraryGroups
+                        // with single default group that contains asset specific to runtime we are trimming for
+                        // based on runtime fallback list
+                        builder.WithRuntimeAssemblyGroups(TrimAssetGroups(libraryExport.RuntimeAssemblyGroups,
+                            _runtimeFallbacks));
+                        builder.WithNativeLibraryGroups(TrimAssetGroups(libraryExport.NativeLibraryGroups,
+                            _runtimeFallbacks));
+                    }
+                    else
+                    {
+                        builder.WithRuntimeAssemblyGroups(libraryExport.RuntimeAssemblyGroups);
+                        builder.WithNativeLibraryGroups(libraryExport.NativeLibraryGroups);
+                    }
+
+                    yield return builder
+                        .WithCompilationAssemblies(compilationAssemblies)
+                        .WithSourceReferences(sourceReferences)
+                        .WithRuntimeAssets(libraryExport.RuntimeAssets)
+                        .WithEmbedddedResources(libraryExport.EmbeddedResources)
+                        .WithAnalyzerReference(analyzerReferences)
+                        .WithResourceAssemblies(libraryExport.ResourceAssemblies)
+                        .Build();
+                }
             }
         }
 

@@ -47,55 +47,78 @@ namespace Microsoft.DotNet.Tools.Build
         {
             var inputs = new List<string>();
             var outputs = new List<string>();
-
-            var isRootProject = graphNode.IsRoot;
-            var project = graphNode.ProjectContext;
-
-            var calculator = project.GetOutputPaths(_configuration, _buildBasePath, _outputPath);
-            var binariesOutputPath = calculator.CompilationOutputPath;
-            var compilerOptions = project.ProjectFile.GetCompilerOptions(project.TargetFramework, _configuration);
-
-            // input: project.json
-            inputs.Add(project.ProjectFile.ProjectFilePath);
-
-            // input: lock file; find when dependencies change
-            AddLockFile(project, inputs);
-
-            // input: source files
-            inputs.AddRange(CompilerUtil.GetCompilationSources(project, compilerOptions));
-
-            var allOutputPath = new HashSet<string>(calculator.CompilationFiles.All());
-            if (isRootProject && project.ProjectFile.HasRuntimeOutput(_configuration))
+            string binariesOutputPath;
+            bool isRootProject;
+            OutputPaths calculator;
+            ProjectContext project;
+            CommonCompilerOptions compilerOptions;
+            using (PerfTrace.Current.CaptureTiming("Init"))
             {
-                var runtimeContext = _workspace.GetRuntimeContext(project, _runtimes);
-                foreach (var path in runtimeContext.GetOutputPaths(_configuration, _buildBasePath, _outputPath).RuntimeFiles.All())
+                isRootProject = graphNode.IsRoot;
+                project = graphNode.ProjectContext;
+
+                calculator = project.GetOutputPaths(_configuration, _buildBasePath, _outputPath);
+                binariesOutputPath = calculator.CompilationOutputPath;
+                compilerOptions = project.ProjectFile.GetCompilerOptions(project.TargetFramework, _configuration);
+
+                // input: project.json
+                inputs.Add(project.ProjectFile.ProjectFilePath);
+
+                // input: lock file; find when dependencies change
+                AddLockFile(project, inputs);
+
+                // input: source files
+                inputs.AddRange(CompilerUtil.GetCompilationSources(project, compilerOptions));
+            }
+            using (PerfTrace.Current.CaptureTiming("allOutputPath"))
+            {
+                var allOutputPath = new HashSet<string>(calculator.CompilationFiles.All());
+                if (isRootProject && project.ProjectFile.HasRuntimeOutput(_configuration))
                 {
-                    allOutputPath.Add(path);
+                    var runtimeContext = _workspace.GetRuntimeContext(project, _runtimes);
+                    foreach (var path in runtimeContext.GetOutputPaths(_configuration, _buildBasePath, _outputPath).RuntimeFiles.All())
+                    {
+                        allOutputPath.Add(path);
+                    }
+                }
+                // output: compiler outputs
+                foreach (var path in allOutputPath)
+                {
+                    outputs.Add(path);
                 }
             }
-            foreach (var dependency in graphNode.Dependencies)
-            {
-                var outputFiles = dependency.ProjectContext
-                    .GetOutputPaths(_configuration, _buildBasePath, _outputPath)
-                    .CompilationFiles;
 
-                inputs.Add(outputFiles.Assembly);
-            }
-
-            // output: compiler outputs
-            foreach (var path in allOutputPath)
+            using (PerfTrace.Current.CaptureTiming("Dependencies"))
             {
-                outputs.Add(path);
+                foreach (var dependency in graphNode.Dependencies)
+                {
+                    var outputFiles = dependency.ProjectContext
+                        .GetOutputPaths(_configuration, _buildBasePath, _outputPath)
+                        .CompilationFiles;
+
+                    inputs.Add(outputFiles.Assembly);
+                }
             }
 
             // input compilation options files
-            AddCompilationOptions(project, _configuration, inputs);
+            using (PerfTrace.Current.CaptureTiming("AddCompilationOptions"))
+            {
+                AddCompilationOptions(project, _configuration, inputs);
+            }
 
             // input / output: resources with culture
-            AddNonCultureResources(project, calculator.IntermediateOutputDirectoryPath, inputs, outputs, compilerOptions);
+            using (PerfTrace.Current.CaptureTiming("AddNonCultureResources"))
+            {
+                AddNonCultureResources(project, calculator.IntermediateOutputDirectoryPath, inputs, outputs,
+                    compilerOptions);
+            }
 
-            // input / output: resources without culture
-            AddCultureResources(project, binariesOutputPath, inputs, outputs, compilerOptions);
+            // Add project source files
+            using (PerfTrace.Current.CaptureTiming("AddCultureResources"))
+            {
+                // input / output: resources without culture
+                AddCultureResources(project, binariesOutputPath, inputs, outputs, compilerOptions);
+            }
 
             return new CompilerIO(inputs, outputs);
         }

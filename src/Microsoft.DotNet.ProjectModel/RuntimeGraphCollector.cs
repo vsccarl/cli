@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Microsoft.DotNet.Cli.Utils;
 using Microsoft.DotNet.ProjectModel.Graph;
 using NuGet.RuntimeModel;
 
@@ -15,20 +16,24 @@ namespace Microsoft.DotNet.ProjectModel
 
         public static RuntimeGraph Collect(IEnumerable<LibraryDescription> libraries)
         {
-            var graph = RuntimeGraph.Empty;
-            foreach (var library in libraries)
+            using (PerfTrace.Current.CaptureTiming())
             {
-                if (library.Identity.Type == LibraryType.Package)
+                var graph = RuntimeGraph.Empty;
+                foreach (var library in libraries)
                 {
-                    var runtimeJson = ((PackageDescription)library).PackageLibrary.Files.FirstOrDefault(f => f == RuntimeJsonFileName);
-                    if (runtimeJson != null)
+                    if (library.Identity.Type == LibraryType.Package)
                     {
-                        var runtimeJsonFullName = Path.Combine(library.Path, runtimeJson);
-                        graph = RuntimeGraph.Merge(graph, JsonRuntimeFormat.ReadRuntimeGraph(runtimeJsonFullName));
+                        var runtimeJson =
+                            ((PackageDescription)library).PackageLibrary.Files.FirstOrDefault(f => f == RuntimeJsonFileName);
+                        if (runtimeJson != null)
+                        {
+                            var runtimeJsonFullName = Path.Combine(library.Path, runtimeJson);
+                            graph = RuntimeGraph.Merge(graph, JsonRuntimeFormat.ReadRuntimeGraph(runtimeJsonFullName));
+                        }
                     }
                 }
+                return graph;
             }
-            return graph;
-        }
+    }
     }
 }

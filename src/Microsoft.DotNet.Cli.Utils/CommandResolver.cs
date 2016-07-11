@@ -14,19 +14,22 @@ namespace Microsoft.DotNet.Cli.Utils
             string configuration = Constants.DefaultConfiguration,
             string outputPath = null)
         {
-            var commandResolverArgs = new CommandResolverArguments
+            using (PerfTrace.Current.CaptureTiming())
             {
-                CommandName = commandName,
-                CommandArguments = args,
-                Framework = framework,
-                ProjectDirectory = Directory.GetCurrentDirectory(),
-                Configuration = configuration,
-                OutputPath = outputPath
-            };
+                var commandResolverArgs = new CommandResolverArguments
+                {
+                    CommandName = commandName,
+                    CommandArguments = args,
+                    Framework = framework,
+                    ProjectDirectory = Directory.GetCurrentDirectory(),
+                    Configuration = configuration,
+                    OutputPath = outputPath
+                };
 
-            var defaultCommandResolver = DefaultCommandResolverPolicy.Create();
+                var defaultCommandResolver = DefaultCommandResolverPolicy.Create();
 
-            return defaultCommandResolver.Resolve(commandResolverArgs);
+                return defaultCommandResolver.Resolve(commandResolverArgs);
+            }
         }
 
         public static CommandSpec TryResolveScriptCommandSpec(
@@ -35,17 +38,20 @@ namespace Microsoft.DotNet.Cli.Utils
             Project project,
             string[] inferredExtensionList)
         {
-            var commandResolverArgs = new CommandResolverArguments
+            using (PerfTrace.Current.CaptureTiming())
             {
-                CommandName = commandName,
-                CommandArguments = args,
-                ProjectDirectory = project.ProjectDirectory,
-                InferredExtensions = inferredExtensionList
-            };
+                var commandResolverArgs = new CommandResolverArguments
+                {
+                    CommandName = commandName,
+                    CommandArguments = args,
+                    ProjectDirectory = project.ProjectDirectory,
+                    InferredExtensions = inferredExtensionList
+                };
 
-            var scriptCommandResolver = ScriptCommandResolverPolicy.Create();
+                var scriptCommandResolver = ScriptCommandResolverPolicy.Create();
 
-            return scriptCommandResolver.Resolve(commandResolverArgs);
+                return scriptCommandResolver.Resolve(commandResolverArgs);
+            }
         }
     }
 }

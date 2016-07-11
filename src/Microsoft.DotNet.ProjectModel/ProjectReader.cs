@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Microsoft.DotNet.Cli.Utils;
 using Microsoft.DotNet.ProjectModel.Files;
 using Microsoft.DotNet.ProjectModel.Graph;
 using Microsoft.DotNet.ProjectModel.Utilities;
@@ -50,8 +51,11 @@ namespace Microsoft.DotNet.ProjectModel
             {
                 using (var stream = File.OpenRead(projectPath))
                 {
-                    var reader = new ProjectReader();
-                    project = reader.ReadProject(stream, projectName, projectPath, settings);
+                    using (PerfTrace.Current.CaptureTiming())
+                    {
+                        var reader = new ProjectReader();
+                        project = reader.ReadProject(stream, projectName, projectPath, settings);
+                    }
                 }
             }
             catch (Exception ex)

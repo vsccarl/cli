@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Microsoft.DotNet.Cli.Utils;
 using Microsoft.DotNet.ProjectModel.FileSystemGlobbing;
 using Newtonsoft.Json.Linq;
 
@@ -82,37 +83,41 @@ namespace Microsoft.DotNet.ProjectModel.Files
 
         public IEnumerable<string> SearchFiles(string rootPath)
         {
-            // literal included files are added at the last, but the search happens early
-            // so as to make the process fail early in case there is missing file. fail early
-            // helps to avoid unnecessary globing for performance optimization
-            var literalIncludedFiles = new List<string>();
-            foreach (var literalRelativePath in IncludeLiterals)
-            {
-                var fullPath = Path.GetFullPath(Path.Combine(rootPath, literalRelativePath));
 
-                if (!File.Exists(fullPath))
+            using (PerfTrace.Current.CaptureTiming(rootPath +"->"+ string.Join(", ", IncludePatterns)))
+            {
+                // literal included files are added at the last, but the search happens early
+                // so as to make the process fail early in case there is missing file. fail early
+                // helps to avoid unnecessary globing for performance optimization
+                var literalIncludedFiles = new List<string>();
+                foreach (var literalRelativePath in IncludeLiterals)
                 {
-                    throw new InvalidOperationException(string.Format("Can't find file {0}", literalRelativePath));
+                    var fullPath = Path.GetFullPath(Path.Combine(rootPath, literalRelativePath));
+
+                    if (!File.Exists(fullPath))
+                    {
+                        throw new InvalidOperationException(string.Format("Can't find file {0}", literalRelativePath));
+                    }
+
+                    // TODO: extract utility like NuGet.PathUtility.GetPathWithForwardSlashes()
+                    literalIncludedFiles.Add(fullPath.Replace('\\', '/'));
                 }
 
-                // TODO: extract utility like NuGet.PathUtility.GetPathWithForwardSlashes()
-                literalIncludedFiles.Add(fullPath.Replace('\\', '/'));
-            }
+                // globing files
+                var globbingResults = _matcher.GetResultsInFullPath(rootPath);
 
-            // globing files
-            var globbingResults = _matcher.GetResultsInFullPath(rootPath);
-
-            // if there is no results generated in globing, skip excluding other groups 
-            // for performance optimization.
-            if (globbingResults.Any())
-            {
-                foreach (var group in _excludeGroups)
+                // if there is no results generated in globing, skip excluding other groups 
+                // for performance optimization.
+                if (globbingResults.Any())
                 {
-                    globbingResults = globbingResults.Except(group.SearchFiles(rootPath));
+                    foreach (var group in _excludeGroups)
+                    {
+                        globbingResults = globbingResults.Except(group.SearchFiles(rootPath));
+                    }
                 }
-            }
 
-            return globbingResults.Concat(literalIncludedFiles).Distinct();
+                return globbingResults.Concat(literalIncludedFiles).Distinct();
+            }
         }
 
         public override string ToString()

@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using Microsoft.DotNet.ProjectModel;
 using Microsoft.DotNet.Cli.Compiler.Common;
+using Microsoft.DotNet.Cli.Utils;
 using Microsoft.DotNet.ProjectModel.Compilation;
 using Microsoft.DotNet.ProjectModel.Files;
 using Microsoft.DotNet.ProjectModel.Resources;
@@ -157,15 +158,19 @@ namespace Microsoft.DotNet.Tools.Compiler
 
         // used in incremental compilation
         public static IEnumerable<string> GetCompilationSources(ProjectContext project, CommonCompilerOptions compilerOptions)
-        {
-            if (compilerOptions.CompileInclude == null)
+        {  // Add project source files
+            using (PerfTrace.Current.CaptureTiming())
             {
-                return project.ProjectFile.Files.SourceFiles;
+                if (compilerOptions.CompileInclude == null)
+                {
+                    return project.ProjectFile.Files.SourceFiles;
+                }
+
+                var includeFiles = IncludeFilesResolver.GetIncludeFiles(compilerOptions.CompileInclude, "/",
+                    diagnostics: null);
+
+                return includeFiles.Select(f => f.SourcePath);
             }
-
-            var includeFiles = IncludeFilesResolver.GetIncludeFiles(compilerOptions.CompileInclude, "/", diagnostics: null);
-
-            return includeFiles.Select(f => f.SourcePath);
         }
 
         //used in incremental precondition checks

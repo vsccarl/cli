@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Microsoft.DotNet.Cli.Utils;
 using Microsoft.DotNet.ProjectModel.Utilities;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -46,37 +47,40 @@ namespace Microsoft.DotNet.ProjectModel.Graph
 
         public LockFile ReadLockFile(string lockFilePath, Stream stream, bool designTime)
         {
-            try
+            using (PerfTrace.Current.CaptureTiming(lockFilePath))
             {
-                var reader = new StreamReader(stream);
-                var jobject = JObject.Load(new JsonTextReader(reader));
-
-                if (jobject == null)
+                try
                 {
-                    throw new InvalidDataException();
+                    var reader = new StreamReader(stream);
+                    var jobject = JObject.Load(new JsonTextReader(reader));
+
+                    if (jobject == null)
+                    {
+                        throw new InvalidDataException();
+                    }
+
+                    var lockFile = ReadLockFile(lockFilePath, jobject);
+
+                    if (!designTime)
+                    {
+                        var patcher = new LockFilePatcher(lockFile, this);
+                        patcher.Patch();
+                    }
+
+                    return lockFile;
                 }
-
-                var lockFile = ReadLockFile(lockFilePath, jobject);
-
-                if (!designTime)
+                catch (LockFilePatchingException)
                 {
-                    var patcher = new LockFilePatcher(lockFile, this);
-                    patcher.Patch();
+                    throw;
                 }
-
-                return lockFile;
-            }
-            catch (LockFilePatchingException)
-            {
-                throw;
-            }
-            catch
-            {
-                // Ran into parsing errors, mark it as unlocked and out-of-date
-                return new LockFile(lockFilePath)
+                catch
                 {
-                    Version = int.MinValue
-                };
+                    // Ran into parsing errors, mark it as unlocked and out-of-date
+                    return new LockFile(lockFilePath)
+                    {
+                        Version = int.MinValue
+                    };
+                }
             }
         }
 

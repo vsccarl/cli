@@ -56,21 +56,35 @@ namespace Microsoft.DotNet.Tools.Build
                 return new IncrementalResult($"project is not safe for incremental compilation. Use {BuildCommandApp.BuildProfileFlag} flag for more information.");
             }
 
-            var compilerIO = _compilerIoManager.GetCompileIO(graphNode);
+            CompilerIO compilerIO;
+            using (PerfTrace.Current.CaptureTiming("GetCompileIO"))
+            {
+                compilerIO = _compilerIoManager.GetCompileIO(graphNode);
+            }
 
-            var result = CLIChanged(graphNode);
+            IncrementalResult result;
+            using (PerfTrace.Current.CaptureTiming("CLIChanged"))
+            {
+                result = CLIChanged(graphNode);
+            }
             if (result.NeedsRebuilding)
             {
                 return result;
             }
 
-            result = InputItemsChanged(graphNode, compilerIO);
+            using (PerfTrace.Current.CaptureTiming("InputItemsChanged")) {
+                result = InputItemsChanged(graphNode, compilerIO);
+            }
+
             if (result.NeedsRebuilding)
             {
                 return result;
             }
 
-            result = TimestampsChanged(compilerIO);
+            using (PerfTrace.Current.CaptureTiming("TimestampsChanged"))
+            {
+                result = TimestampsChanged(compilerIO);
+            }
             if (result.NeedsRebuilding)
             {
                 return result;

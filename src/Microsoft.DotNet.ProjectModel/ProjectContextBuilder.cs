@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using Microsoft.DotNet.Cli.Utils;
 using Microsoft.DotNet.InternalAbstractions;
 using Microsoft.DotNet.ProjectModel.Graph;
 using Microsoft.DotNet.ProjectModel.Resolution;
@@ -198,183 +199,195 @@ namespace Microsoft.DotNet.ProjectModel
 
         public ProjectContext Build()
         {
-            var diagnostics = new List<DiagnosticMessage>();
-
-            ProjectDirectory = Project?.ProjectDirectory ?? ProjectDirectory;
-
-            GlobalSettings globalSettings = null;
-            if (ProjectDirectory != null)
+            using (PerfTrace.Current.CaptureTiming())
             {
-                RootDirectory = ProjectRootResolver.ResolveRootDirectory(ProjectDirectory);
-                GlobalSettings.TryGetGlobalSettings(RootDirectory, out globalSettings);
-            }
+                var diagnostics = new List<DiagnosticMessage>();
 
-            RootDirectory = globalSettings?.DirectoryPath ?? RootDirectory;
-            PackagesDirectory = PackagesDirectory ?? PackageDependencyProvider.ResolvePackagesPath(RootDirectory, globalSettings);
+                ProjectDirectory = Project?.ProjectDirectory ?? ProjectDirectory;
 
-            FrameworkReferenceResolver frameworkReferenceResolver;
-            if (string.IsNullOrEmpty(ReferenceAssembliesPath))
-            {
-                // Use the default static resolver
-                frameworkReferenceResolver = FrameworkReferenceResolver.Default;
-            }
-            else
-            {
-                frameworkReferenceResolver = new FrameworkReferenceResolver(ReferenceAssembliesPath);
-            }
-
-            LockFileLookup lockFileLookup = null;
-            EnsureProjectLoaded();
-
-            ReadLockFile(diagnostics);
-
-            var validLockFile = true;
-            string lockFileValidationMessage = null;
-
-            if (LockFile != null)
-            {
-                if (Project != null)
+                GlobalSettings globalSettings = null;
+                if (ProjectDirectory != null)
                 {
-                    validLockFile = LockFile.IsValidForProject(Project, out lockFileValidationMessage);
+                    RootDirectory = ProjectRootResolver.ResolveRootDirectory(ProjectDirectory);
+                    GlobalSettings.TryGetGlobalSettings(RootDirectory, out globalSettings);
                 }
 
-                lockFileLookup = new LockFileLookup(LockFile);
-            }
+                RootDirectory = globalSettings?.DirectoryPath ?? RootDirectory;
+                PackagesDirectory = PackagesDirectory ??
+                                    PackageDependencyProvider.ResolvePackagesPath(RootDirectory, globalSettings);
 
-            var libraries = new Dictionary<LibraryKey, LibraryDescription>();
-            var projectResolver = new ProjectDependencyProvider(ProjectResolver);
-
-            ProjectDescription mainProject = null;
-            if (Project != null)
-            {
-                mainProject = projectResolver.GetDescription(TargetFramework, Project, targetLibrary: null);
-
-                // Add the main project
-                libraries.Add(new LibraryKey(mainProject.Identity.Name), mainProject);
-            }
-
-            LibraryRange? platformDependency = null;
-            if (mainProject != null)
-            {
-                platformDependency = mainProject.Dependencies
-                    .Where(d => d.Type.Equals(LibraryDependencyType.Platform))
-                    .Cast<LibraryRange?>()
-                    .FirstOrDefault();
-            }
-            bool isPortable = platformDependency != null;
-
-            LockFileTarget target = null;
-            LibraryDescription platformLibrary = null;
-
-            if (lockFileLookup != null)
-            {
-                target = SelectTarget(LockFile, isPortable);
-                if (target != null)
+                FrameworkReferenceResolver frameworkReferenceResolver;
+                if (string.IsNullOrEmpty(ReferenceAssembliesPath))
                 {
-                    var nugetPackageResolver = new PackageDependencyProvider(PackagesDirectory, frameworkReferenceResolver);
-                    var msbuildProjectResolver = new MSBuildDependencyProvider(Project, ProjectResolver);
-                    ScanLibraries(target, lockFileLookup, libraries, msbuildProjectResolver, nugetPackageResolver, projectResolver);
-
-                    if (platformDependency != null)
-                    {
-                        libraries.TryGetValue(new LibraryKey(platformDependency.Value.Name), out platformLibrary);
-                    }
-                }
-            }
-
-            string runtime = target?.RuntimeIdentifier;
-            if (string.IsNullOrEmpty(runtime) && TargetFramework.IsDesktop())
-            {
-                // we got a ridless target for desktop so turning portable mode on
-                isPortable = true;
-                var legacyRuntime = RuntimeEnvironmentRidExtensions.GetLegacyRestoreRuntimeIdentifier();
-                if (RuntimeIdentifiers.Contains(legacyRuntime))
-                {
-                    runtime = legacyRuntime;
+                    // Use the default static resolver
+                    frameworkReferenceResolver = FrameworkReferenceResolver.Default;
                 }
                 else
                 {
-                    runtime = RuntimeIdentifiers.FirstOrDefault();
+                    frameworkReferenceResolver = new FrameworkReferenceResolver(ReferenceAssembliesPath);
                 }
-            }
 
-            var referenceAssemblyDependencyResolver = new ReferenceAssemblyDependencyResolver(frameworkReferenceResolver);
-            bool requiresFrameworkAssemblies;
+                LockFileLookup lockFileLookup = null;
+                EnsureProjectLoaded();
 
-            // Resolve the dependencies
-            ResolveDependencies(libraries, referenceAssemblyDependencyResolver, out requiresFrameworkAssemblies);
+                ReadLockFile(diagnostics);
 
-            // REVIEW: Should this be in NuGet (possibly stored in the lock file?)
-            if (LockFile == null)
-            {
-                diagnostics.Add(new DiagnosticMessage(
-                    ErrorCodes.NU1009,
-                    $"The expected lock file doesn't exist. Please run \"dotnet restore\" to generate a new lock file.",
-                    Path.Combine(Project.ProjectDirectory, LockFile.FileName),
-                    DiagnosticMessageSeverity.Error));
-            }
+                var validLockFile = true;
+                string lockFileValidationMessage = null;
 
-            if (!validLockFile)
-            {
-                diagnostics.Add(new DiagnosticMessage(
-                    ErrorCodes.NU1006,
-                    $"{lockFileValidationMessage}. Please run \"dotnet restore\" to generate a new lock file.",
-                    Path.Combine(Project.ProjectDirectory, LockFile.FileName),
-                    DiagnosticMessageSeverity.Warning));
-            }
-
-            if (requiresFrameworkAssemblies)
-            {
-                var frameworkInfo = Project.GetTargetFramework(TargetFramework);
-
-                if (frameworkReferenceResolver == null || string.IsNullOrEmpty(frameworkReferenceResolver.ReferenceAssembliesPath))
+                if (LockFile != null)
                 {
-                    // If there was an attempt to use reference assemblies but they were not installed
-                    // report an error
-                    diagnostics.Add(new DiagnosticMessage(
-                        ErrorCodes.DOTNET1012,
-                        $"The reference assemblies directory was not specified. You can set the location using the DOTNET_REFERENCE_ASSEMBLIES_PATH environment variable.",
-                        filePath: Project.ProjectFilePath,
-                        severity: DiagnosticMessageSeverity.Error,
-                        startLine: frameworkInfo.Line,
-                        startColumn: frameworkInfo.Column
-                    ));
+                    if (Project != null)
+                    {
+                        validLockFile = LockFile.IsValidForProject(Project, out lockFileValidationMessage);
+                    }
+
+                    lockFileLookup = new LockFileLookup(LockFile);
                 }
-                else if (!frameworkReferenceResolver.IsInstalled(TargetFramework))
+
+                var libraries = new Dictionary<LibraryKey, LibraryDescription>();
+                var projectResolver = new ProjectDependencyProvider(ProjectResolver);
+
+                ProjectDescription mainProject = null;
+                if (Project != null)
                 {
-                    // If there was an attempt to use reference assemblies but they were not installed
-                    // report an error
-                    diagnostics.Add(new DiagnosticMessage(
-                        ErrorCodes.DOTNET1011,
-                        $"Framework not installed: {TargetFramework.DotNetFrameworkName} in {ReferenceAssembliesPath}",
-                        filePath: Project.ProjectFilePath,
-                        severity: DiagnosticMessageSeverity.Error,
-                        startLine: frameworkInfo.Line,
-                        startColumn: frameworkInfo.Column
-                    ));
+                    mainProject = projectResolver.GetDescription(TargetFramework, Project, targetLibrary: null);
+
+                    // Add the main project
+                    libraries.Add(new LibraryKey(mainProject.Identity.Name), mainProject);
                 }
+
+                LibraryRange? platformDependency = null;
+                if (mainProject != null)
+                {
+                    platformDependency = mainProject.Dependencies
+                        .Where(d => d.Type.Equals(LibraryDependencyType.Platform))
+                        .Cast<LibraryRange?>()
+                        .FirstOrDefault();
+                }
+                bool isPortable = platformDependency != null;
+
+                LockFileTarget target = null;
+                LibraryDescription platformLibrary = null;
+
+                if (lockFileLookup != null)
+                {
+                    target = SelectTarget(LockFile, isPortable);
+                    if (target != null)
+                    {
+                        var nugetPackageResolver = new PackageDependencyProvider(PackagesDirectory,
+                            frameworkReferenceResolver);
+                        var msbuildProjectResolver = new MSBuildDependencyProvider(Project, ProjectResolver);
+                        using (PerfTrace.Current.CaptureTiming("", nameof(ScanLibraries)))
+                        {
+                            ScanLibraries(target, lockFileLookup, libraries, msbuildProjectResolver,
+                                nugetPackageResolver,
+                                projectResolver);
+                        }
+                        if (platformDependency != null)
+                        {
+                            libraries.TryGetValue(new LibraryKey(platformDependency.Value.Name), out platformLibrary);
+                        }
+                    }
+                }
+
+                string runtime = target?.RuntimeIdentifier;
+                if (string.IsNullOrEmpty(runtime) && TargetFramework.IsDesktop())
+                {
+                    // we got a ridless target for desktop so turning portable mode on
+                    isPortable = true;
+                    var legacyRuntime = RuntimeEnvironmentRidExtensions.GetLegacyRestoreRuntimeIdentifier();
+                    if (RuntimeIdentifiers.Contains(legacyRuntime))
+                    {
+                        runtime = legacyRuntime;
+                    }
+                    else
+                    {
+                        runtime = RuntimeIdentifiers.FirstOrDefault();
+                    }
+                }
+
+                var referenceAssemblyDependencyResolver =
+                    new ReferenceAssemblyDependencyResolver(frameworkReferenceResolver);
+                bool requiresFrameworkAssemblies;
+
+                // Resolve the dependencies
+                ResolveDependencies(libraries, referenceAssemblyDependencyResolver, out requiresFrameworkAssemblies);
+
+                // REVIEW: Should this be in NuGet (possibly stored in the lock file?)
+                if (LockFile == null)
+                {
+                    diagnostics.Add(new DiagnosticMessage(
+                        ErrorCodes.NU1009,
+                        $"The expected lock file doesn't exist. Please run \"dotnet restore\" to generate a new lock file.",
+                        Path.Combine(Project.ProjectDirectory, LockFile.FileName),
+                        DiagnosticMessageSeverity.Error));
+                }
+
+                if (!validLockFile)
+                {
+                    diagnostics.Add(new DiagnosticMessage(
+                        ErrorCodes.NU1006,
+                        $"{lockFileValidationMessage}. Please run \"dotnet restore\" to generate a new lock file.",
+                        Path.Combine(Project.ProjectDirectory, LockFile.FileName),
+                        DiagnosticMessageSeverity.Warning));
+                }
+
+                if (requiresFrameworkAssemblies)
+                {
+                    var frameworkInfo = Project.GetTargetFramework(TargetFramework);
+
+                    if (frameworkReferenceResolver == null ||
+                        string.IsNullOrEmpty(frameworkReferenceResolver.ReferenceAssembliesPath))
+                    {
+                        // If there was an attempt to use reference assemblies but they were not installed
+                        // report an error
+                        diagnostics.Add(new DiagnosticMessage(
+                            ErrorCodes.DOTNET1012,
+                            $"The reference assemblies directory was not specified. You can set the location using the DOTNET_REFERENCE_ASSEMBLIES_PATH environment variable.",
+                            filePath: Project.ProjectFilePath,
+                            severity: DiagnosticMessageSeverity.Error,
+                            startLine: frameworkInfo.Line,
+                            startColumn: frameworkInfo.Column
+                        ));
+                    }
+                    else if (!frameworkReferenceResolver.IsInstalled(TargetFramework))
+                    {
+                        // If there was an attempt to use reference assemblies but they were not installed
+                        // report an error
+                        diagnostics.Add(new DiagnosticMessage(
+                            ErrorCodes.DOTNET1011,
+                            $"Framework not installed: {TargetFramework.DotNetFrameworkName} in {ReferenceAssembliesPath}",
+                            filePath: Project.ProjectFilePath,
+                            severity: DiagnosticMessageSeverity.Error,
+                            startLine: frameworkInfo.Line,
+                            startColumn: frameworkInfo.Column
+                        ));
+                    }
+                }
+
+                List<DiagnosticMessage> allDiagnostics = new List<DiagnosticMessage>(diagnostics);
+                if (Project != null)
+                {
+                    allDiagnostics.AddRange(Project.Diagnostics);
+                }
+
+                // Create a library manager
+                var libraryManager = new LibraryManager(libraries.Values.ToList(), allDiagnostics,
+                    Project?.ProjectFilePath);
+
+                return new ProjectContext(
+                    globalSettings,
+                    mainProject,
+                    platformLibrary,
+                    TargetFramework,
+                    isPortable,
+                    runtime,
+                    PackagesDirectory,
+                    libraryManager,
+                    LockFile,
+                    diagnostics);
             }
-
-            List<DiagnosticMessage> allDiagnostics = new List<DiagnosticMessage>(diagnostics);
-            if (Project != null)
-            {
-                allDiagnostics.AddRange(Project.Diagnostics);
-            }
-
-            // Create a library manager
-            var libraryManager = new LibraryManager(libraries.Values.ToList(), allDiagnostics, Project?.ProjectFilePath);
-
-            return new ProjectContext(
-                globalSettings,
-                mainProject,
-                platformLibrary,
-                TargetFramework,
-                isPortable,
-                runtime,
-                PackagesDirectory,
-                libraryManager,
-                LockFile,
-                diagnostics);
         }
 
         private void ReadLockFile(ICollection<DiagnosticMessage> diagnostics)

@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using Microsoft.DotNet.Cli.Utils;
 using Microsoft.DotNet.ProjectModel.Compilation;
 using Microsoft.DotNet.ProjectModel.Graph;
 
@@ -38,18 +39,21 @@ namespace Microsoft.DotNet.ProjectModel
 
         public static HashSet<string> GetTypeBuildExclusionList(this ProjectContext context, IDictionary<string, LibraryExport> exports)
         {
-            var acceptedExports = new HashSet<string>();
+            using (PerfTrace.Current.CaptureTiming())
+            {
+                var acceptedExports = new HashSet<string>();
 
-            // Accept the root project, obviously :)
-            acceptedExports.Add(context.RootProject.Identity.Name);
+                // Accept the root project, obviously :)
+                acceptedExports.Add(context.RootProject.Identity.Name);
 
-            // Walk all dependencies, tagging exports. But don't walk through Build dependencies.
-            CollectNonBuildDependencies(exports, context.RootProject.Dependencies, acceptedExports);
+                // Walk all dependencies, tagging exports. But don't walk through Build dependencies.
+                CollectNonBuildDependencies(exports, context.RootProject.Dependencies, acceptedExports);
 
-            // Whatever is left in exports was brought in ONLY by a build dependency
-            var exclusionList = new HashSet<string>(exports.Keys);
-            exclusionList.ExceptWith(acceptedExports);
-            return exclusionList;
+                // Whatever is left in exports was brought in ONLY by a build dependency
+                var exclusionList = new HashSet<string>(exports.Keys);
+                exclusionList.ExceptWith(acceptedExports);
+                return exclusionList;
+            }
         }
 
         private static void CollectNonBuildDependencies(IDictionary<string, LibraryExport> exports, IEnumerable<LibraryRange> dependencies, HashSet<string> acceptedExports)

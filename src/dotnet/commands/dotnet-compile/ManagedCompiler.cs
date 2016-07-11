@@ -122,41 +122,48 @@ namespace Microsoft.DotNet.Tools.Compiler
             }
 
             compilerArgs.AddRange(references.Select(r => $"--reference:{r}"));
-
-            if (compilationOptions.PreserveCompilationContext == true)
+            using (PerfTrace.Current.CaptureTiming("PreserveCompilationContext"))
             {
-                var allExports = exporter.GetAllExports().ToList();
-                var exportsLookup = allExports.ToDictionary(e => e.Library.Identity.Name);
-                var buildExclusionList = context.GetTypeBuildExclusionList(exportsLookup);
-                var filteredExports = allExports
-                    .Where(e => e.Library.Identity.Type.Equals(LibraryType.ReferenceAssembly) ||
-                        !buildExclusionList.Contains(e.Library.Identity.Name));
-
-                var dependencyContext = new DependencyContextBuilder().Build(compilationOptions,
-                    filteredExports,
-                    filteredExports,
-                    false, // For now, just assume non-portable mode in the legacy deps file (this is going away soon anyway)
-                    context.TargetFramework,
-                    context.RuntimeIdentifier ?? string.Empty);
-
-                var writer = new DependencyContextWriter();
-                var depsJsonFile = Path.Combine(intermediateOutputPath, compilationOptions.OutputName + "dotnet-compile.deps.json");
-                using (var fileStream = File.Create(depsJsonFile))
+                if (compilationOptions.PreserveCompilationContext == true)
                 {
-                    writer.Write(dependencyContext, fileStream);
+                    var allExports = exporter.GetAllExports().ToList();
+                    var exportsLookup = allExports.ToDictionary(e => e.Library.Identity.Name);
+                    var buildExclusionList = context.GetTypeBuildExclusionList(exportsLookup);
+                    var filteredExports = allExports
+                        .Where(e => e.Library.Identity.Type.Equals(LibraryType.ReferenceAssembly) ||
+                                    !buildExclusionList.Contains(e.Library.Identity.Name));
+                    DependencyContext dependencyContext;
+                    using (PerfTrace.Current.CaptureTiming("DependencyContextBuilder.Build"))
+                    {
+                        dependencyContext = new DependencyContextBuilder().Build(compilationOptions,
+                            filteredExports,
+                            filteredExports,
+                            false,
+                            // For now, just assume non-portable mode in the legacy deps file (this is going away soon anyway)
+                            context.TargetFramework,
+                            context.RuntimeIdentifier ?? string.Empty);
+                    }
+                    string depsJsonFile;
+                    using (PerfTrace.Current.CaptureTiming("DependencyContextWriter.Write"))
+                    {
+                        var writer = new DependencyContextWriter();
+                        depsJsonFile = Path.Combine(intermediateOutputPath,
+                            compilationOptions.OutputName + "dotnet-compile.deps.json");
+                        using (var fileStream = File.Create(depsJsonFile))
+                        {
+                            writer.Write(dependencyContext, fileStream);
+                        }
+                    }
+                    compilerArgs.Add($"--resource:\"{depsJsonFile}\",{compilationOptions.OutputName}.deps.json");
                 }
-
-                compilerArgs.Add($"--resource:\"{depsJsonFile}\",{compilationOptions.OutputName}.deps.json");
             }
 
             if (!AddNonCultureResources(context.ProjectFile, compilerArgs, intermediateOutputPath, compilationOptions))
             {
                 return false;
             }
-            // Add project source files
             var sourceFiles = CompilerUtil.GetCompilationSources(context, compilationOptions);
             compilerArgs.AddRange(sourceFiles);
-
             var compilerName = compilationOptions.CompilerName;
 
             // Write RSP file
@@ -214,7 +221,11 @@ namespace Microsoft.DotNet.Tools.Compiler
 
             if (success)
             {
-                success &= GenerateCultureResourceAssemblies(context.ProjectFile, dependencies, outputPath, compilationOptions);
+                using (PerfTrace.Current.CaptureTiming("GenerateCultureResourceAssemblies"))
+                {
+                    success &= GenerateCultureResourceAssemblies(context.ProjectFile, dependencies, outputPath,
+                        compilationOptions);
+                }
             }
 
             return PrintSummary(diagnostics, sw, success);

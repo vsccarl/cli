@@ -3,8 +3,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
+using Microsoft.DotNet.Cli.Utils.IA;
 
 namespace Microsoft.DotNet.Cli.Utils
 {
@@ -12,11 +14,11 @@ namespace Microsoft.DotNet.Cli.Utils
     {
         private static TimeSpan _minDuration = TimeSpan.FromSeconds(0.001);
 
-        public static void Print(Reporter reporter, IEnumerable<PerfTraceThreadContext> contexts)
+        public static void Print(IEnumerable<PerfTraceThreadContext> contexts)
         {
             foreach (var threadContext in contexts)
             {
-                Print(reporter, new[] { threadContext.Root }, threadContext.Root, null);
+                Print(Reporter.Output, new[] { threadContext.Root }, threadContext.Root, null);
             }
         }
 
