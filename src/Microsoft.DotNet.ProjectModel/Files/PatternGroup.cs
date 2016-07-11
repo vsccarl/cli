@@ -15,6 +15,7 @@ namespace Microsoft.DotNet.ProjectModel.Files
     {
         private readonly List<PatternGroup> _excludeGroups = new List<PatternGroup>();
         private readonly Matcher _matcher = new Matcher();
+        static readonly Dictionary<string, IEnumerable<string>> Cache = new Dictionary<string, IEnumerable<string>>();
 
         internal PatternGroup(IEnumerable<string> includePatterns)
         {
@@ -83,8 +84,20 @@ namespace Microsoft.DotNet.ProjectModel.Files
 
         public IEnumerable<string> SearchFiles(string rootPath)
         {
+            var key = rootPath
+                + (IncludePatterns.Any() ? " ++ " + string.Join(", ", IncludePatterns): "")
+                + (IncludeLiterals.Any() ? " + " + string.Join(", ", IncludeLiterals) : "")
+                + (ExcludePatterns.Any() ? " -- " + string.Join(", ", ExcludePatterns) : "");
+            IEnumerable<string> result;
+            lock (Cache)
+            {
+                if (Cache.TryGetValue(key, out result))
+                {
+                    return result;
+                }
+            }
 
-            using (PerfTrace.Current.CaptureTiming(rootPath +"->"+ string.Join(", ", IncludePatterns)))
+            using (PerfTrace.Current.CaptureTiming(key))
             {
                 // literal included files are added at the last, but the search happens early
                 // so as to make the process fail early in case there is missing file. fail early
@@ -116,8 +129,13 @@ namespace Microsoft.DotNet.ProjectModel.Files
                     }
                 }
 
-                return globbingResults.Concat(literalIncludedFiles).Distinct();
+                result =  globbingResults.Concat(literalIncludedFiles).Distinct();
+                lock (Cache)
+                {
+                    Cache.Add(key, result);
+                }
             }
+            return result;
         }
 
         public override string ToString()
