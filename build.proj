@@ -1,13 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="BuildTheWholeCli" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="build/Microsoft.DotNet.Cli.Monikers.props" />
-  
-  <Import Project="build/Microsoft.DotNet.Cli.Prepare.targets" />
-  <Import Project="build/Microsoft.DotNet.Cli.Compile.targets" />
-  <Import Project="build/Microsoft.DotNet.Cli.Package.targets" />
-  <Import Project="build/Microsoft.DotNet.Cli.Test.targets" />
-  <Import Project="build/Microsoft.DotNet.Cli.Publish.targets" />
-  <Import Project="build/Microsoft.DotNet.Cli.Run.targets" />
 
   <PropertyGroup>
     <!--
@@ -78,4 +71,13 @@
   </Target>
 
   <Target DependsOnTargets="$(CLITargets)" Name="BuildTheWholeCli"></Target>
+
+  
+  
+  <Import Project="build/Microsoft.DotNet.Cli.Prepare.targets" />
+  <Import Project="build/Microsoft.DotNet.Cli.Compile.targets" />
+  <Import Project="build/Microsoft.DotNet.Cli.Package.targets" />
+  <Import Project="build/Microsoft.DotNet.Cli.Test.targets" />
+  <Import Project="build/Microsoft.DotNet.Cli.Publish.targets" />
+  <Import Project="build/Microsoft.DotNet.Cli.Run.targets" />
 </Project>
