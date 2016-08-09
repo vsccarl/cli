@@ -12,8 +12,7 @@
                             CheckPrereqs;">
   </Target>
 
-  <Target Name="InitializeCommonProps"
-          DependsOnTargets="BuildDotnetCliBuildFramework" >
+  <Target Name="InitializeCommonProps">
 
     <!-- Current Runtime Information -->
     <GetCurrentRuntimeInformation>
@@ -21,6 +20,8 @@
       <Output TaskParameter="Architecture" PropertyName="Architecture" />
       <Output TaskParameter="OSName" PropertyName="OSName" />
     </GetCurrentRuntimeInformation>
+
+    <Message Text="hello" />
 
     <!-- NuGet Information -->
     <PropertyGroup>
@@ -197,6 +198,7 @@
     <ItemGroup>
       <SrcToolsLockFiles Include="$(RepoRoot)/src/**/project.lock.json;$(RepoRoot)/tools/**/project.lock.json" />
     </ItemGroup>
+    <Message Text="hello" />
     <Delete Files="@(SrcToolsLockFiles)" />
   </Target>
 

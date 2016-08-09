@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="BuildTheWholeCli" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="build/Microsoft.DotNet.Cli.Monikers.props" />
+  
+  <Import Project="build/Microsoft.DotNet.Cli.Prepare.targets" />
+  <Import Project="build/Microsoft.DotNet.Cli.Compile.targets" />
+  <Import Project="build/Microsoft.DotNet.Cli.Package.targets" />
+  <Import Project="build/Microsoft.DotNet.Cli.Test.targets" />
+  <Import Project="build/Microsoft.DotNet.Cli.Publish.targets" />
+  <Import Project="build/Microsoft.DotNet.Cli.Run.targets" />
 
   <PropertyGroup>
     <!--
@@ -42,18 +49,11 @@
     <DotnetCliBuildFrameworkInputs Include="build_projects/**/project.json;build_projects/**/project.lock.json" />
   </ItemGroup>
 
-  <!-- Workaround to "Native image cannot be loaded multiple times" issue
-       A target in the top level file needs to run and invoke a task
-       https://github.com/Microsoft/msbuild/issues/750 -->
-  <Target Name="MSBuildWorkaroundTarget">
-    <Message Text="Dont remove this target" />
-  </Target>
 
   <Target Name="BuildDotnetCliBuildFramework"
           Inputs="@(DotnetCliBuildFrameworkInputs)"
           Outputs="$(CLIBuildDll)"
-          DependsOnTargets="MSBuildWorkaroundTarget;
-                            RestoreDotnetCliBuildFramework">
+          DependsOnTargets="RestoreDotnetCliBuildFramework">
 
     <ItemGroup>
       <DotnetSdkDirectories Include="$([System.IO.Directory]::GetDirectories(&quot;$(Stage0Directory)/sdk&quot;))" />
@@ -78,11 +78,4 @@
   </Target>
 
   <Target DependsOnTargets="$(CLITargets)" Name="BuildTheWholeCli"></Target>
-
-  <Import Project="build/Microsoft.DotNet.Cli.Prepare.targets" />
-  <Import Project="build/Microsoft.DotNet.Cli.Compile.targets" />
-  <Import Project="build/Microsoft.DotNet.Cli.Package.targets" />
-  <Import Project="build/Microsoft.DotNet.Cli.Test.targets" />
-  <Import Project="build/Microsoft.DotNet.Cli.Publish.targets" />
-  <Import Project="build/Microsoft.DotNet.Cli.Run.targets" />
 </Project>
