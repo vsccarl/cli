@@ -22,12 +22,12 @@ namespace Microsoft.DotNet.Tools.CrossGen
             var appNameParam = app.Option("--appName <APPNAME>", "Name of the app", CommandOptionType.SingleValue);
             var appRootParam = app.Option("--appRoot <DIR>", "App directory", CommandOptionType.SingleValue);
 
-            var outputDirParam = app.Option("--outputDir <DIR>", "(Optional) Directory to write the output cache to, default is DOTNET_HOSTING_OPTIMIZATION_CACHE", CommandOptionType.SingleValue);
+            var outputDirParam = app.Option("--output-directory <DIR>", "(Optional) Directory to write the output cache to, default is DOTNET_HOSTING_OPTIMIZATION_CACHE", CommandOptionType.SingleValue);
             var outputStructureParam = app.Option("--output-structure", "(Optional) Structure of the output. \"APP\" - Default option, obtain app's directory structure; \"CACHE\" - Arrange the crossgen'd assemblies in the structure of the optimization cache.", CommandOptionType.SingleValue);
-            var crossGenExeLocationParam = app.Option("--crossgenExe <FILE>", "(Optional) Location of crossgen executable.", CommandOptionType.SingleValue);
-            var generatePDBParam = app.Option("--generatePDB", "(Optional) Option to generate PDB", CommandOptionType.NoValue);
+            var crossGenExeLocationParam = app.Option("--crossgen-executable <FILE>", "(Optional) Location of crossgen executable.", CommandOptionType.SingleValue);
+            var generatePDBParam = app.Option("--generate-symbols", "(Optional) Option to generate PDB symbols", CommandOptionType.NoValue);
             var diaSymReaderLocationParam = app.Option("--diasymreader <FILE>", "(Optional) Location of diasymreader", CommandOptionType.SingleValue);
-            var overwriteHashParam = app.Option("--overwrite-on-conflict", "(Optional) Used in CACHE output mode only. If a package hash value conflicts with existing cache, the program will exit unless this option is given.", CommandOptionType.NoValue);
+            var overwriteHashParam = app.Option("--overwrite-on-conflict", "(Optional) Used in CACHE output mode only. If a package hash value conflicts with existing cache, the program will exit unless this option is given. In this case the existing cache would be overwritten.", CommandOptionType.NoValue);
 
             app.OnExecute( () => {
                 VerifyRequired(crossGenExeLocationParam);

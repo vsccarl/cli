@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyModel;
 namespace Microsoft.DotNet.Tools.CrossGen.Outputs
 {
     /// <summary>
-    /// NuGet logic warning: Move out if/when needed
+    /// We do not have enough information to publish the optimization cache as a published app.
     /// </summary>
     public class OptimizationCacheCrossGenHandler : CrossGenHandler
     {
@@ -67,8 +67,57 @@ namespace Microsoft.DotNet.Tools.CrossGen.Outputs
                 File.WriteAllText(shaLocation, sha);
             }
 
-            // TODO: Copy everything needed.
-            // aspnet/BuildTools/DependenciesPackager
+            var libRoot = GetOutputRootForLib(lib);
+            if (lib.Assemblies != null)
+            {
+                foreach (var assembly in lib.Assemblies)
+                {
+                    TryCopyOver(libRoot, assembly.Path);
+                }
+            }
+
+            foreach (var group in lib.NativeLibraryGroups)
+            {
+                foreach (var path in group.AssetPaths)
+                {
+                    TryCopyOver(libRoot, path);
+                }
+            }
+
+            if (lib.ResourceAssemblies != null)
+            {
+                foreach (var assembly in lib.ResourceAssemblies)
+                {
+                    TryCopyOver(libRoot, assembly.Path);
+                }
+            }
+
+            foreach (var group in lib.RuntimeAssemblyGroups)
+            {
+                foreach (var path in group.AssetPaths)
+                {
+                    TryCopyOver(libRoot, path);
+                }
+            }
+        }
+
+        private void TryCopyOver(string libRoot, string relativePath)
+        {
+            var sourcePath = Path.Combine(AppDir, relativePath);
+            if (File.Exists(sourcePath))
+            {
+                var targetPath = Path.Combine(libRoot, relativePath);
+                if (!File.Exists(targetPath))
+                {
+                    var targetDir = Path.GetDirectoryName(targetPath);
+                    Directory.CreateDirectory(targetDir);
+                    File.Copy(sourcePath, targetPath);
+                }
+            }
+            else
+            {
+                Reporter.Output.WriteLine($"Cannot locate resouce {relativePath} from source directory {AppDir}. It will not be copied");
+            }
         }
 
         private string GetShaLocation(RuntimeLibrary lib)
